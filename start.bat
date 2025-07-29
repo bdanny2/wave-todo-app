@@ -1,0 +1,3 @@
+@echo off
+echo Launching your To-Do List App...
+wave run --no-reload todo.py
