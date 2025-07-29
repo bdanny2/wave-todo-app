@@ -1,7 +1,7 @@
 """Wave To-Do List App"""
 
 from typing import List
-from h2o_wave import Q, app, ui
+from h2o_wave import Q, app, ui, main
 from datetime import datetime
 import base64
 
@@ -17,6 +17,7 @@ class TodoItem:
         self.text = text
         self.done = False
         self.done_at = None  # ✅ Timestamp when marked done
+        self.created_at = datetime.now()  # 🆕 When created
 
 
 @app('/todo', mode='multicast')
@@ -57,10 +58,23 @@ def show_todos(q: Q):
                 todo.done = False
                 todo.done_at = None
 
-    done = [ui.checkbox(name=todo.id, label=todo.text, value=True, trigger=True)
-            for todo in todos if todo.done]
-    not_done = [ui.checkbox(name=todo.id, label=todo.text, trigger=True)
-                for todo in todos if not todo.done]
+    done = [
+    ui.checkbox(
+        name=todo.id,
+        label=f"{todo.text} ({todo.done_at.strftime('%b %d, %Y %I:%M %p')})" if todo.done_at else todo.text,
+        value=True,
+        trigger=True
+    )
+    for todo in todos if todo.done
+]
+    not_done = [
+    ui.checkbox(
+        name=todo.id,
+        label=f"{todo.text} (Added: {todo.created_at.strftime('%b %d, %Y %I:%M %p')})",
+        trigger=True
+    )
+    for todo in todos if not todo.done
+]
 
     q.page['form'] = ui.form_card(box='1 1 4 10', items=[
         ui.text_l('To Do'),
@@ -117,15 +131,17 @@ def clear_todos(q: Q):
 
 
 def export_todos(q: Q):
-    """Convert the to-do list to plain text for export."""
+    """Convert the to-do list to plain text for export with timestamps."""
     todos: List[TodoItem] = q.user.todos or []
     lines = ['To-Do List\n', '===========\n\n']
     for todo in todos:
         status = '[x]' if todo.done else '[ ]'
-        lines.append(f'{status} {todo.text}\n')
+        timestamp = f" (Done: {todo.done_at.strftime('%b %d, %Y %I:%M %p')})" if todo.done and todo.done_at else ''
+        lines.append(f'{status} {todo.text}{timestamp}\n')
 
     q.client.exported_text = ''.join(lines)
     show_todos(q)
+
 
 
 def make_download_link(text: str) -> str:
@@ -145,14 +161,19 @@ def show_print_view(q: Q):
     todos: List[TodoItem] = q.user.todos or []
     now = datetime.now().strftime('%A, %B %d, %Y at %I:%M %p')
 
-    not_done = [f'<li>⬜ {todo.text}</li>' for todo in todos if not todo.done]
-
-    done = [
-        f'<li>✅ {todo.text} '
-        f'<span style="font-size:12px; color:gray;">({todo.done_at.strftime("%b %d, %Y %I:%M %p")})</span></li>'
-        for todo in todos if todo.done and todo.done_at
+    not_done = [
+    f'<li>⬜ {todo.text} '
+    f'<span style="font-size:12px; color:gray;">(Added: {todo.created_at.strftime("%b %d, %Y %I:%M %p")})</span></li>'
+    for todo in todos if not todo.done
     ]
-
+    
+    done = [
+    f'<li>✅ {todo.text} '
+    f'<span style="font-size:12px; color:gray;">(Added: {todo.created_at.strftime("%b %d, %Y %I:%M %p")}, '
+    f'Done: {todo.done_at.strftime("%b %d, %Y %I:%M %p")})</span></li>'
+    for todo in todos if todo.done and todo.done_at
+    ]
+    
     html_lines = [
         f'<h2>📋 To-Do List</h2>',
         f'<p><strong>Date:</strong> {now}</p>',
